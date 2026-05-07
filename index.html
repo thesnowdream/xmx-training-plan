@@ -320,6 +320,31 @@
       background: rgba(255, 255, 255, 0.12);
     }
 
+    .type-picker {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 14px;
+      padding: 8px 10px;
+      border: 1px solid rgba(255, 255, 255, 0.32);
+      border-radius: 999px;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 800;
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .type-picker select {
+      border: 0;
+      border-radius: 999px;
+      padding: 6px 28px 6px 10px;
+      color: var(--text);
+      font: inherit;
+      background: #fffdf9;
+      outline: 0;
+      cursor: pointer;
+    }
+
     .detail-body {
       padding: 18px 22px 22px;
     }
@@ -552,7 +577,7 @@
       <div>
         <p class="eyebrow">2026.05.07 - 2027.05.06 · 健身房器械 · 一周三到四练</p>
         <h1>XMX的变强计划</h1>
-        <p class="summary">以固定器械训练为主，臀腿侧重后侧链，肩背侧重中下背，胸肩作为推力与肩部线条补充。每天点开后可勾选建议动作，按状态选择完成全部或部分训练。</p>
+        <p class="summary">以固定器械训练为主，臀腿侧重后侧链，肩背侧重中下背，胸肩作为推力与肩部线条补充。每天点开后可自由选择当天训练部位，并勾选或编辑建议动作。</p>
       </div>
       <div class="stats" aria-label="计划概览">
         <div class="stat">
@@ -601,6 +626,10 @@
           <p class="detail-date" id="detailDate"></p>
           <h2 class="detail-title" id="detailTitle"></h2>
           <div class="chips" id="detailChips"></div>
+          <label class="type-picker" for="typePicker">
+            训练部位
+            <select id="typePicker" aria-label="选择当天训练部位"></select>
+          </label>
         </div>
         <div class="detail-body">
           <p class="phase-note" id="phaseNote"></p>
@@ -639,6 +668,7 @@
     const detailDate = document.getElementById("detailDate");
     const detailTitle = document.getElementById("detailTitle");
     const detailChips = document.getElementById("detailChips");
+    const typePicker = document.getElementById("typePicker");
     const phaseNote = document.getElementById("phaseNote");
     const warmupList = document.getElementById("warmupList");
     const mainList = document.getElementById("mainList");
@@ -855,10 +885,18 @@
       return phases[phaseIndex];
     }
 
-    function getWorkoutType(date) {
+    function defaultWorkoutType(date) {
       const index = daysBetween(startDate, date) % 7;
       const cycle = ["glutes", "recovery", "back", "recovery", "chest", "conditioning", "recovery"];
       return cycle[index];
+    }
+
+    function workoutTypeKey(date) {
+      return `gym-plan:${dateKey(date)}:workout-type`;
+    }
+
+    function getWorkoutType(date) {
+      return localStorage.getItem(workoutTypeKey(date)) || defaultWorkoutType(date);
     }
 
     function getSetCount(type, phase) {
@@ -892,17 +930,17 @@
       return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
     }
 
-    function storageKey(date, section, index, field) {
-      return `gym-plan:${dateKey(date)}:${section}:${index}:${field}`;
+    function storageKey(date, type, section, index, field) {
+      return `gym-plan:${dateKey(date)}:${type}:${section}:${index}:${field}`;
     }
 
-    function getSavedMove(date, section, index, name, dose) {
-      const savedName = localStorage.getItem(storageKey(date, section, index, "name"));
-      const savedDose = localStorage.getItem(storageKey(date, section, index, "dose"));
+    function getSavedMove(date, type, section, index, name, dose) {
+      const savedName = localStorage.getItem(storageKey(date, type, section, index, "name"));
+      const savedDose = localStorage.getItem(storageKey(date, type, section, index, "dose"));
       return {
         name: savedName === null ? name : savedName,
         dose: savedDose === null ? dose : savedDose,
-        checked: localStorage.getItem(storageKey(date, section, index, "done")) === "1"
+        checked: localStorage.getItem(storageKey(date, type, section, index, "done")) === "1"
       };
     }
 
@@ -923,15 +961,15 @@
       ];
       return sections.some(([section, items]) => {
         return items.some((item, index) => {
-          return localStorage.getItem(storageKey(date, section, index, "done")) === "1";
+          return localStorage.getItem(storageKey(date, plan.type, section, index, "done")) === "1";
         });
       });
     }
 
-    function renderList(target, items, section, date) {
+    function renderList(target, items, section, date, type) {
       target.innerHTML = "";
       items.forEach(([name, dose], index) => {
-        const saved = getSavedMove(date, section, index, name, dose);
+        const saved = getSavedMove(date, type, section, index, name, dose);
         const li = document.createElement("li");
         li.className = "move";
         if (saved.checked) li.classList.add("done");
@@ -945,15 +983,15 @@
         const doseInput = li.querySelector(".move-dose");
         checkbox.addEventListener("change", (event) => {
           li.classList.toggle("done", event.target.checked);
-          localStorage.setItem(storageKey(date, section, index, "done"), event.target.checked ? "1" : "0");
+          localStorage.setItem(storageKey(date, type, section, index, "done"), event.target.checked ? "1" : "0");
           renderCalendar();
         });
         nameInput.addEventListener("input", (event) => {
-          localStorage.setItem(storageKey(date, section, index, "name"), event.target.value);
+          localStorage.setItem(storageKey(date, type, section, index, "name"), event.target.value);
           checkbox.setAttribute("aria-label", `勾选 ${event.target.value || "未命名动作"}`);
         });
         doseInput.addEventListener("input", (event) => {
-          localStorage.setItem(storageKey(date, section, index, "dose"), event.target.value);
+          localStorage.setItem(storageKey(date, type, section, index, "dose"), event.target.value);
         });
         target.appendChild(li);
       });
@@ -973,6 +1011,7 @@
       detailHero.className = `detail-hero ${plan.type}`;
       detailDate.textContent = formatDate(date);
       detailTitle.textContent = plan.title;
+      typePicker.value = plan.type;
       detailChips.innerHTML = `
         <span class="chip">${typeNames[plan.type]}</span>
         <span class="chip">${plan.phase.name}</span>
@@ -981,9 +1020,9 @@
         <span class="chip">强度 ${plan.phase.intensity}</span>
       `;
       phaseNote.textContent = `${plan.phase.months} · ${plan.phase.note}`;
-      renderList(warmupList, plan.warmup, "warmup", date);
-      renderList(mainList, plan.main, "main", date);
-      renderList(cooldownList, plan.cooldown, "cooldown", date);
+      renderList(warmupList, plan.warmup, "warmup", date, plan.type);
+      renderList(mainList, plan.main, "main", date, plan.type);
+      renderList(cooldownList, plan.cooldown, "cooldown", date, plan.type);
       renderNotes(plan.notes);
     }
 
@@ -1058,6 +1097,19 @@
 
     nextMonth.addEventListener("click", () => {
       visibleMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 1);
+      renderCalendar();
+    });
+
+    Object.entries(typeNames).forEach(([value, label]) => {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+      typePicker.appendChild(option);
+    });
+
+    typePicker.addEventListener("change", (event) => {
+      localStorage.setItem(workoutTypeKey(selectedDate), event.target.value);
+      renderDetail(selectedDate);
       renderCalendar();
     });
 
